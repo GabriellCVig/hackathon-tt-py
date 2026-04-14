@@ -15,60 +15,38 @@ def _snake(name: str) -> str:
     return re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 
-def visit_class_declaration(node: Node, ctx: TranslationContext, visit_node) -> str:
-    """Visit a class_declaration node and generate Python class definition.
-    
-    Handles:
-    - Class name extraction
-    - Base class (extends clause)
-    - Abstract classes (from ABC)
-    - Class body translation
-    """
-    # Check if abstract
+
+def _extract_class_info(node):
+    """Extract class name, base class, and abstract flag."""
     is_abstract = False
     for child in node.children:
         if child.type == 'abstract':
             is_abstract = True
-            ctx.add_import('from abc import ABC, abstractmethod')
             break
     
-    # Extract class name
     class_name = None
     for child in node.children:
         if child.type in ('identifier', 'type_identifier'):
             class_name = child.text.decode('utf-8')
             break
     
-    if not class_name:
-        return ''
-    
-    # Extract base class from heritage clause
     base_class = 'ABC' if is_abstract else None
-    # Look for class_heritage directly in node children
     for child in node.children:
         if child.type == 'class_heritage':
-            # Found heritage, look for extends_clause inside
             for heritage_child in child.children:
-                if heritage_child.type in ('extends_clause',):
-                    # Get identifier from extends clause
+                if heritage_child.type == 'extends_clause':
                     for extends_child in heritage_child.children:
                         if extends_child.type in ('identifier', 'type_identifier'):
                             base_class = extends_child.text.decode('utf-8')
                             break
                     break
             break
+    
+    return is_abstract, class_name, base_class
 
-    # Set current class context
-    ctx.current_class = class_name
-    
-    # Build class header
-    indent = ctx.indent()
-    if base_class:
-        result = f"{indent}class {class_name}({base_class}):\n"
-    else:
-        result = f"{indent}class {class_name}:\n"
-    
-    # Visit class body
+
+def _build_class_body(node, ctx, visit_node):
+    """Build the class body with proper indentation."""
     class_body = node.child_by_field_name('body')
     if class_body:
         ctx.indent_level += 1
@@ -79,15 +57,48 @@ def visit_class_declaration(node: Node, ctx: TranslationContext, visit_node) -> 
                 body_parts.append(translated)
         
         if body_parts:
-            result += '\n'.join(body_parts)
+            result = r'\n'.join(body_parts)
         else:
-            result += f"{ctx.indent()}pass\n"
+            result = f"{ctx.indent()}pass\n"
         
         ctx.indent_level -= 1
     else:
         ctx.indent_level += 1
-        result += f"{ctx.indent()}pass\n"
+        result = f"{ctx.indent()}pass\n"
         ctx.indent_level -= 1
+    
+    return result
+
+
+def visit_class_declaration(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """Visit a class_declaration node and generate Python class definition.
+    
+    Handles:
+    - Class name extraction
+    - Base class (extends clause)
+    - Abstract classes (from ABC)
+    - Class body translation
+    """
+    is_abstract, class_name, base_class = _extract_class_info(node)
+    
+    if is_abstract:
+        ctx.add_import('from abc import ABC, abstractmethod')
+    
+    if not class_name:
+        return ''
+    
+    # Set current class context
+    ctx.current_class = class_name
+    
+    # Build class header
+    indent = ctx.indent()
+    if base_class:
+        result = f"{indent}class {class_name}({base_class}):\n"
+    else:
+        result = f"{indent}class {class_name}:\n"
+    
+    # Build class body
+    result += _build_class_body(node, ctx, visit_node)
     
     # Clear current class context
     ctx.current_class = None
@@ -95,18 +106,8 @@ def visit_class_declaration(node: Node, ctx: TranslationContext, visit_node) -> 
     return result
 
 
-def visit_method_definition(node: Node, ctx: TranslationContext, visit_node) -> str:
-    """Visit a method_definition node and generate Python method.
-    
-    Handles:
-    - Method name conversion to snake_case
-    - async methods
-    - abstract methods (@abstractmethod)
-    - static methods (@staticmethod)
-    - Access modifiers (public/private/protected)
-    - Parameters (adding self)
-    """
-    # Check modifiers
+def _extract_method_modifiers(node, ctx):
+    """Extract method modifiers."""
     is_async = False
     is_static = False
     is_abstract = False
@@ -123,30 +124,21 @@ def visit_method_definition(node: Node, ctx: TranslationContext, visit_node) -> 
         elif child.type == 'accessibility_modifier':
             access_modifier = child.text.decode('utf-8')
     
-    # Extract method name
-    method_name = None
-    name_node = node.child_by_field_name('name')
-    if name_node:
-        original_name = name_node.text.decode('utf-8')
-        method_name = _snake(original_name)
-    
-    if not method_name:
-        return ''
-    
-    # Extract parameters
+    return is_async, is_static, is_abstract, access_modifier
+
+
+def _extract_method_params(node, ctx, visit_node, is_static):
+    """Extract and format method parameters."""
     params_node = node.child_by_field_name('parameters')
     if params_node:
         params_str = visit_node(params_node, ctx)
-        # Add self/cls if not static
         if is_static:
             if params_str and params_str != '()':
-                # Remove outer parens and use as-is
                 params_str = params_str.strip('()')
             else:
                 params_str = ''
         else:
             if params_str and params_str != '()':
-                # Remove outer parens, prepend self
                 params_inner = params_str.strip('()')
                 params_str = f"self, {params_inner}"
             else:
@@ -154,7 +146,11 @@ def visit_method_definition(node: Node, ctx: TranslationContext, visit_node) -> 
     else:
         params_str = 'self' if not is_static else ''
     
-    # Build method signature
+    return params_str
+
+
+def _build_method_signature(ctx, is_abstract, is_static, is_async, method_name, params_str):
+    """Build method signature with decorators."""
     indent = ctx.indent()
     decorators = []
     
@@ -163,10 +159,39 @@ def visit_method_definition(node: Node, ctx: TranslationContext, visit_node) -> 
     if is_static:
         decorators.append(f"{indent}@staticmethod")
     
-    decorator_str = '\n'.join(decorators) + '\n' if decorators else ''
-    
+    decorator_str = r'\n'.join(decorators) + r'\n' if decorators else ''
     async_keyword = 'async ' if is_async else ''
     signature = f"{indent}{async_keyword}def {method_name}({params_str}):\n"
+    
+    return decorator_str, signature
+
+
+def visit_method_definition(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """Visit a method_definition node and generate Python method.
+    
+    Handles:
+    - Method name conversion to snake_case
+    - async methods
+    - abstract methods (@abstractmethod)
+    - static methods (@staticmethod)
+    - Access modifiers (public/private/protected)
+    - Parameters (adding self)
+    """
+    is_async, is_static, is_abstract, access_modifier = _extract_method_modifiers(node, ctx)
+    
+    # Extract method name
+    name_node = node.child_by_field_name('name')
+    if name_node:
+        original_name = name_node.text.decode('utf-8')
+        method_name = _snake(original_name)
+    else:
+        return ''
+    
+    # Extract parameters
+    params_str = _extract_method_params(node, ctx, visit_node, is_static)
+    
+    # Build signature
+    decorator_str, signature = _build_method_signature(ctx, is_abstract, is_static, is_async, method_name, params_str)
     
     # Visit method body
     body_node = node.child_by_field_name('body')
@@ -187,6 +212,7 @@ def visit_method_definition(node: Node, ctx: TranslationContext, visit_node) -> 
         else:
             result = decorator_str + signature + f"{ctx.indent()}    pass\n"
     else:
+        indent = ctx.indent()
         result = decorator_str + signature + f"{indent}    pass\n"
     
     return result

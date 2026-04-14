@@ -186,22 +186,12 @@ class ImportMapper:
             return f"abs({obj})"
         return None
     
-    def _map_array_method(self, method: str, obj: str, args: list[str]) -> str | None:
-        """Map array methods to Python equivalents."""
-        args_str = ", ".join(args) if args else ""
-        
-        if method == "push":
-            return f"{obj}.append({args_str})"
-        elif method == "filter":
+    def _map_array_transform(self, method: str, obj: str, args: list[str]) -> str | None:
+        """Map array transformation methods."""
+        if method == "filter":
             return f"[x for x in {obj} if {args[0]}(x)]" if args else f"list({obj})"
         elif method == "map":
             return f"[{args[0]}(x) for x in {obj}]" if args else f"list({obj})"
-        elif method == "length":
-            return f"len({obj})"
-        elif method == "includes":
-            return f"{args[0]} in {obj}" if args else "False"
-        elif method == "find":
-            return f"next((x for x in {obj} if {args[0]}(x)), None)" if args else "None"
         elif method == "reduce":
             self._needed_imports.add("import functools")
             if len(args) >= 2:
@@ -211,11 +201,23 @@ class ImportMapper:
             return obj
         elif method == "forEach":
             return f"# TODO: forEach - convert to for loop: for x in {obj}: {args[0]}(x)"
+        return None
+    
+    def _map_array_search(self, method: str, obj: str, args: list[str]) -> str | None:
+        """Map array search/test methods."""
+        if method == "includes":
+            return f"{args[0]} in {obj}" if args else "False"
+        elif method == "find":
+            return f"next((x for x in {obj} if {args[0]}(x)), None)" if args else "None"
         elif method == "some":
             return f"any({args[0]}(x) for x in {obj})" if args else f"any({obj})"
         elif method == "every":
             return f"all({args[0]}(x) for x in {obj})" if args else f"all({obj})"
-        elif method == "slice":
+        return None
+    
+    def _map_array_slice(self, method: str, obj: str, args: list[str]) -> str | None:
+        """Map array slicing methods."""
+        if method == "slice":
             if len(args) == 2:
                 return f"{obj}[{args[0]}:{args[1]}]"
             elif len(args) == 1:
@@ -226,7 +228,31 @@ class ImportMapper:
                 return f"del {obj}[{args[0]}:{args[0]}+{args[1]}]"
             return obj
         elif method == "join":
-            return f"{args[0]}.join({obj})" if args else f".join({obj})"
+            return f"{args[0]}.join({obj})" if args else f"''.join({obj})"
+        return None
+    
+    def _map_array_method(self, method: str, obj: str, args: list[str]) -> str | None:
+        """Map array methods to Python equivalents."""
+        args_str = ", ".join(args) if args else ""
+        
+        if method == "push":
+            return f"{obj}.append({args_str})"
+        elif method == "length":
+            return f"len({obj})"
+        
+        # Try specialized helpers
+        result = self._map_array_transform(method, obj, args)
+        if result:
+            return result
+        
+        result = self._map_array_search(method, obj, args)
+        if result:
+            return result
+        
+        result = self._map_array_slice(method, obj, args)
+        if result:
+            return result
+        
         return None
     
     def _map_string_method(self, method: str, obj: str, args_str: str) -> str | None:
@@ -276,105 +302,25 @@ class ImportMapper:
         """
         args_str = ", ".join(args) if args else ""
         
-        # Big.js methods
-        if method == "plus":
-            return f"{obj} + {args[0]}" if args else obj
-        elif method == "minus":
-            return f"{obj} - {args[0]}" if args else obj
-        elif method == "mul":
-            return f"{obj} * {args[0]}" if args else obj
-        elif method == "div":
-            return f"{obj} / {args[0]}" if args else obj
-        elif method == "toNumber":
-            return f"float({obj})"
-        elif method == "toFixed" and args:
-            return f"round({obj}, {args[0]})"
-        elif method == "gt":
-            return f"{obj} > {args[0]}" if args else obj
-        elif method == "gte":
-            return f"{obj} >= {args[0]}" if args else obj
-        elif method == "lt":
-            return f"{obj} < {args[0]}" if args else obj
-        elif method == "lte":
-            return f"{obj} <= {args[0]}" if args else obj
-        elif method == "eq":
-            return f"{obj} == {args[0]}" if args else obj
-        elif method == "abs":
-            return f"abs({obj})"
+        # Try specialized method mappers
+        big_result = self._map_big_method(method, obj, args)
+        if big_result:
+            return big_result
         
-        # Array methods
-        elif method == "push":
-            return f"{obj}.append({args_str})"
-        elif method == "filter":
-            return f"[x for x in {obj} if {args[0]}(x)]" if args else f"list({obj})"
-        elif method == "map":
-            return f"[{args[0]}(x) for x in {obj}]" if args else f"list({obj})"
-        elif method == "length":
-            return f"len({obj})"
-        elif method == "includes":
-            return f"{args[0]} in {obj}" if args else f"False"
-        elif method == "find":
-            return f"next((x for x in {obj} if {args[0]}(x)), None)" if args else "None"
-        elif method == "reduce":
-            self._needed_imports.add("import functools")
-            if len(args) >= 2:
-                return f"functools.reduce({args[0]}, {obj}, {args[1]})"
-            elif len(args) == 1:
-                return f"functools.reduce({args[0]}, {obj})"
-            else:
-                return obj
-        elif method == "forEach":
-            # Cannot directly translate - need statement context
-            return f"# TODO: forEach - convert to for loop: for x in {obj}: {args[0]}(x)"
-        elif method == "some":
-            return f"any({args[0]}(x) for x in {obj})" if args else f"any({obj})"
-        elif method == "every":
-            return f"all({args[0]}(x) for x in {obj})" if args else f"all({obj})"
-        elif method == "slice":
-            if len(args) == 2:
-                return f"{obj}[{args[0]}:{args[1]}]"
-            elif len(args) == 1:
-                return f"{obj}[{args[0]}:]"
-            else:
-                return f"{obj}[:]"
-        elif method == "splice":
-            if len(args) >= 2:
-                return f"del {obj}[{args[0]}:{args[0]}+{args[1]}]"
-            else:
-                return obj
-        elif method == "join":
-            return f"{args[0]}.join({obj})" if args else f"''.join({obj})"
+        array_result = self._map_array_method(method, obj, args)
+        if array_result:
+            return array_result
         
-        # String methods
-        elif method == "toString":
-            return f"str({obj})"
-        elif method == "startsWith":
-            return f"{obj}.startswith({args_str})"
-        elif method == "endsWith":
-            return f"{obj}.endswith({args_str})"
+        string_result = self._map_string_method(method, obj, args_str)
+        if string_result:
+            return string_result
         
-        # Map/Object methods (already Python-compatible in most cases)
-        elif method == "keys":
-            return f"{obj}.keys()"
-        elif method == "values":
-            return f"{obj}.values()"
-        elif method == "entries":
-            return f"{obj}.items()"
-        elif method == "has":
-            return f"{args[0]} in {obj}" if args else "False"
-        elif method == "get":
-            return f"{obj}.get({args_str})"
-        elif method == "set":
-            if len(args) >= 2:
-                return f"{obj}[{args[0]}] = {args[1]}"
-            else:
-                return obj
-        elif method == "delete":
-            return f"del {obj}[{args[0]}]" if args else obj
+        dict_result = self._map_dict_method(method, obj, args)
+        if dict_result:
+            return dict_result
         
         # Default: standard method call
-        else:
-            return f"{obj}.{method}({args_str})"
+        return f"{obj}.{method}({args_str})"
 
     def map_type(self, ts_type: str) -> str:
         """Map a TypeScript type to Python type hint.

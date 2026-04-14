@@ -14,7 +14,8 @@ def _snake(name: str) -> str:
 
 def _handle_big_method_call(obj: str, method: str, args_text: str):
     """Handle Big.js method calls."""
-    if method == "plus":
+    # Arithmetic methods
+    if method == "plus" or method == "add":
         return f"({obj} + {args_text})"
     elif method == "minus":
         return f"({obj} - {args_text})"
@@ -22,6 +23,22 @@ def _handle_big_method_call(obj: str, method: str, args_text: str):
         return f"({obj} * {args_text})"
     elif method == "div":
         return f"({obj} / {args_text})"
+    elif method == "abs":
+        return f"abs({obj})"
+    
+    # Comparison methods
+    elif method == "eq":
+        return f"({obj} == {args_text})"
+    elif method == "gt":
+        return f"({obj} > {args_text})"
+    elif method == "gte":
+        return f"({obj} >= {args_text})"
+    elif method == "lt":
+        return f"({obj} < {args_text})"
+    elif method == "lte":
+        return f"({obj} <= {args_text})"
+    
+    # Conversion methods
     elif method == "toNumber":
         return f"float({obj})"
     elif method == "toFixed":
@@ -185,7 +202,15 @@ def visit_new_expression(node: Node, ctx: TranslationContext, visit_node) -> str
     if not constructor:
         return ''
     
-    constructor_text = visit_node(constructor, ctx)
+    # Check raw constructor BEFORE snake_casing
+    raw_constructor = constructor.text.decode('utf-8') if hasattr(constructor, 'text') else ''
+    
+    # Special case: Big -> Decimal
+    if raw_constructor == 'Big':
+        constructor_text = 'Decimal'
+    else:
+        constructor_text = visit_node(constructor, ctx)
+
     
     # Map constructor via import_mapper
     if hasattr(ctx, 'import_mapper'):
@@ -242,17 +267,29 @@ def visit_arrow_function(node: Node, ctx: TranslationContext, visit_node) -> str
     Translates to lambda for single expressions, or inline def for blocks.
     """
     params = []
+    destructured_props = []
     body = None
     
     for child in node.children:
-        if child.type in ('formal_parameters', 'identifier'):
-            # Extract parameter names
-            if child.type == 'identifier':
-                params.append(child.text.decode())
-            else:
-                for param_child in child.children:
-                    if param_child.type == 'identifier':
-                        params.append(param_child.text.decode())
+        if child.type == 'formal_parameters':
+            # Extract parameters, handling destructuring
+            for param_child in child.children:
+                if param_child.type == 'identifier':
+                    params.append(_snake(param_child.text.decode()))
+                elif param_child.type == 'object_pattern':
+                    # Destructuring: extract property names
+                    for prop_child in param_child.named_children:
+                        if prop_child.type == 'shorthand_property_identifier_pattern':
+                            prop_name = prop_child.text.decode()
+                            destructured_props.append(_snake(prop_name))
+        elif child.type == 'identifier':
+            params.append(_snake(child.text.decode()))
+        elif child.type == 'object_pattern':
+            # Destructuring parameter without formal_parameters wrapper
+            for prop_child in child.named_children:
+                if prop_child.type == 'shorthand_property_identifier_pattern':
+                    prop_name = prop_child.text.decode()
+                    destructured_props.append(_snake(prop_name))
         elif child.type == '=>':
             continue
         else:
@@ -261,16 +298,49 @@ def visit_arrow_function(node: Node, ctx: TranslationContext, visit_node) -> str
     if not body:
         return ''
     
-    params_text = ', '.join(params)
+    # If we have destructuring but no regular params, use 'x' as the lambda param
+    if destructured_props and not params:
+        params = ['x']
+    
+    params_text = ', '.join(params) if params else 'x'
     
     # Single expression body -> lambda
     if body.type != 'statement_block':
         body_text = visit_node(body, ctx)
+        # If destructured, access properties
+        if destructured_props:
+            body_text = f'x.{destructured_props[0]}' if len(destructured_props) == 1 else body_text
         return f'lambda {params_text}: {body_text}'
     
-    # Block body -> needs multi-line function (not ideal for inline)
-    # For now, return a placeholder comment
-    return f'# TODO: multi-line arrow function with params ({params_text})'
+    # Block body with single return statement
+    # Check if it's a simple return
+    if body.type == 'statement_block':
+        statements = [c for c in body.named_children]
+        if len(statements) == 1 and statements[0].type == 'return_statement':
+            # Simple return - extract the return value
+            return_value = None
+            for ret_child in statements[0].named_children:
+                if ret_child.type != 'return':
+                    return_value = ret_child
+                    break
+            if return_value:
+                if return_value.type == 'identifier' and destructured_props:
+                    # Returning a destructured property
+                    prop_name = return_value.text.decode()
+                    snake_prop = _snake(prop_name)
+                    if snake_prop in destructured_props:
+                        # Use the first param (usually 'x') to access the property
+                        param = params[0] if params else 'x'
+                        return f'lambda {param}: {param}.{snake_prop}'
+                ret_text = visit_node(return_value, ctx)
+                # If ret_text references a destructured prop, prepend param access
+                if destructured_props and ret_text in destructured_props:
+                    param = params[0] if params else 'x'
+                    return f'lambda {param}: {param}.{ret_text}'
+                return f'lambda {params_text}: {ret_text}'
+    
+    # Complex block body -> placeholder
+    return f'lambda {params_text}: True  # TODO: complex arrow function'
 
 
 def visit_assignment_expression(node: Node, ctx: TranslationContext, visit_node) -> str:
