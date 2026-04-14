@@ -11,8 +11,8 @@ if TYPE_CHECKING:
 
 def _snake(name: str) -> str:
     """Convert camelCase/PascalCase to snake_case."""
-    s = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', name)
-    return re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', s).lower()
+    s = re.sub(r'([a-z0-9])([A-Z])', r'_', name)
+    return re.sub(r'([A-Z]+)([A-Z][a-z])', r'_', s).lower()
 
 
 def visit_class_declaration(node: Node, ctx: TranslationContext, visit_node) -> str:
@@ -81,7 +81,7 @@ def visit_class_declaration(node: Node, ctx: TranslationContext, visit_node) -> 
                 body_parts.append(translated)
         
         if body_parts:
-            result += '\\n'.join(body_parts)
+            result += '\n'.join(body_parts)
         else:
             result += f"{ctx.indent()}pass\n"
         
@@ -165,7 +165,7 @@ def visit_method_definition(node: Node, ctx: TranslationContext, visit_node) -> 
     if is_static:
         decorators.append(f"{indent}@staticmethod")
     
-    decorator_str = '\\n'.join(decorators) + '\\n' if decorators else ''
+    decorator_str = '\n'.join(decorators) + '\n' if decorators else ''
     
     async_keyword = 'async ' if is_async else ''
     signature = f"{indent}{async_keyword}def {method_name}({params_str}):\n"
@@ -282,14 +282,14 @@ def visit_variable_declaration(node: Node, ctx: TranslationContext, visit_node) 
                 indent = ctx.indent()
                 results.append(f"{indent}{var_name} = None\n")
     
-    return '\\n'.join(results) if results else ''
+    return '\n'.join(results) if results else ''
 
 
 def visit_formal_parameters(node: Node, ctx: TranslationContext, visit_node) -> str:
     """Visit a formal_parameters node and generate Python parameter list.
     
     Extracts parameter names, strips type annotations, converts to snake_case.
-    Returns parameter string WITHOUT surrounding parentheses (caller adds them).
+    Returns parameter string WITH surrounding parentheses.
     """
     params = []
     
@@ -314,4 +314,6 @@ def visit_formal_parameters(node: Node, ctx: TranslationContext, visit_node) -> 
     
     # Return comma-separated params WITH parentheses
     if params:
-        return '(' + ', '.join(params) + ')''
+        return '(' + ', '.join(params) + ')'
+    else:
+        return '()'
