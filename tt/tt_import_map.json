@@ -1,0 +1,198 @@
+{
+  "libraries": {
+    "big.js": {
+      "python_package": "decimal",
+      "mappings": {
+        "Big": {
+          "python_name": "Decimal",
+          "import_stmt": "from decimal import Decimal",
+          "translation_notes": "Big.js uses method chaining (.plus, .minus, .mul, .div). Python Decimal uses operator overloading (+, -, *, /). Convert all method calls to operators. Also handle .toNumber() -> float(), .toFixed(n) -> format with precision, .eq(x) -> == x, .gt(x) -> > x, .gte(x) -> >= x, .lt(x) -> < x, .lte(x) -> <= x, .abs() -> abs()"
+        }
+      }
+    },
+    "date-fns": {
+      "python_package": "datetime + custom utilities",
+      "mappings": {
+        "differenceInDays": {
+          "python_name": "difference_in_days",
+          "import_stmt": "from tt.date_utils import difference_in_days",
+          "translation_notes": "Implement as: def difference_in_days(end, start): return (end - start).days"
+        },
+        "eachDayOfInterval": {
+          "python_name": "each_day_of_interval",
+          "import_stmt": "from tt.date_utils import each_day_of_interval",
+          "translation_notes": "Implement as generator: def each_day_of_interval(interval, step=1): current = interval['start']; end = interval['end']; while current <= end: yield current; current += timedelta(days=step)"
+        },
+        "eachYearOfInterval": {
+          "python_name": "each_year_of_interval",
+          "import_stmt": "from tt.date_utils import each_year_of_interval",
+          "translation_notes": "Implement as generator yielding first day of each year in interval"
+        },
+        "format": {
+          "python_name": "format_date",
+          "import_stmt": "from tt.date_utils import format_date",
+          "translation_notes": "Map date-fns format tokens to strftime: yyyy->%Y, MM->%m, dd->%d, etc. Implement: def format_date(date, format_str): # convert date-fns format to strftime"
+        },
+        "isAfter": {
+          "python_name": "operator >",
+          "import_stmt": "",
+          "translation_notes": "Direct translation: isAfter(a, b) -> a > b"
+        },
+        "isBefore": {
+          "python_name": "operator <",
+          "import_stmt": "",
+          "translation_notes": "Direct translation: isBefore(a, b) -> a < b"
+        },
+        "isWithinInterval": {
+          "python_name": "is_within_interval",
+          "import_stmt": "from tt.date_utils import is_within_interval",
+          "translation_notes": "Implement as: def is_within_interval(date, interval): return interval['start'] <= date <= interval['end']"
+        },
+        "min": {
+          "python_name": "min",
+          "import_stmt": "",
+          "translation_notes": "Use Python builtin min()"
+        },
+        "startOfDay": {
+          "python_name": "start_of_day",
+          "import_stmt": "from tt.date_utils import start_of_day",
+          "translation_notes": "Implement as: def start_of_day(date): return date.replace(hour=0, minute=0, second=0, microsecond=0)"
+        },
+        "endOfDay": {
+          "python_name": "end_of_day",
+          "import_stmt": "from tt.date_utils import end_of_day",
+          "translation_notes": "Implement as: def end_of_day(date): return date.replace(hour=23, minute=59, second=59, microsecond=999999)"
+        },
+        "startOfYear": {
+          "python_name": "start_of_year",
+          "import_stmt": "from tt.date_utils import start_of_year",
+          "translation_notes": "Implement as: def start_of_year(date): return date.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)"
+        },
+        "endOfYear": {
+          "python_name": "end_of_year",
+          "import_stmt": "from tt.date_utils import end_of_year",
+          "translation_notes": "Implement as: def end_of_year(date): return date.replace(month=12, day=31, hour=23, minute=59, second=59, microsecond=999999)"
+        },
+        "subDays": {
+          "python_name": "sub_days",
+          "import_stmt": "from datetime import timedelta",
+          "translation_notes": "Implement as: def sub_days(date, days): return date - timedelta(days=days)"
+        },
+        "addMilliseconds": {
+          "python_name": "add_milliseconds",
+          "import_stmt": "from datetime import timedelta",
+          "translation_notes": "Implement as: def add_milliseconds(date, ms): return date + timedelta(milliseconds=ms)"
+        },
+        "parseISO": {
+          "python_name": "parse_iso",
+          "import_stmt": "from datetime import datetime",
+          "translation_notes": "Implement as: def parse_iso(date_str): return datetime.fromisoformat(date_str.replace('Z', '+00:00'))"
+        },
+        "isThisYear": {
+          "python_name": "is_this_year",
+          "import_stmt": "from datetime import datetime",
+          "translation_notes": "Implement as: def is_this_year(date): return date.year == datetime.now().year"
+        }
+      }
+    },
+    "lodash": {
+      "python_package": "builtins + copy",
+      "mappings": {
+        "isNumber": {
+          "python_name": "is_number",
+          "import_stmt": "",
+          "translation_notes": "Direct translation: isNumber(x) -> isinstance(x, (int, float, Decimal))"
+        },
+        "sortBy": {
+          "python_name": "sorted",
+          "import_stmt": "",
+          "translation_notes": "sortBy(arr, fn) -> sorted(arr, key=fn). If fn is a string property name, use key=lambda x: x[fn] or key=lambda x: getattr(x, fn)"
+        },
+        "sum": {
+          "python_name": "sum",
+          "import_stmt": "",
+          "translation_notes": "Use Python builtin sum(). Note: for Decimal, may need sum(values, Decimal(0)) to maintain precision"
+        },
+        "uniqBy": {
+          "python_name": "uniq_by",
+          "import_stmt": "from tt.utils import uniq_by",
+          "translation_notes": "Implement as: def uniq_by(items, key_fn): seen = set(); result = []; for item in items: k = key_fn(item) if callable(key_fn) else item[key_fn]; if k not in seen: seen.add(k); result.append(item); return result"
+        },
+        "cloneDeep": {
+          "python_name": "deepcopy",
+          "import_stmt": "from copy import deepcopy",
+          "translation_notes": "Direct replacement: cloneDeep(x) -> deepcopy(x)"
+        }
+      }
+    },
+    "class-transformer": {
+      "python_package": "dataclasses",
+      "mappings": {
+        "plainToClass": {
+          "python_name": "construct_from_dict",
+          "import_stmt": "",
+          "translation_notes": "For dataclasses: MyClass(**plain_dict). For regular classes, may need custom constructor. Context-dependent translation."
+        }
+      }
+    },
+    "@nestjs/common": {
+      "python_package": "logging",
+      "mappings": {
+        "Logger": {
+          "python_name": "logger",
+          "import_stmt": "import logging",
+          "translation_notes": "Replace Logger.debug() with logging.debug(), Logger.warn() with logging.warning(), etc. Create module-level logger: logger = logging.getLogger(__name__)"
+        }
+      }
+    },
+    "@ghostfolio/common": {
+      "python_package": "tt.ghostfolio_common",
+      "mappings": {
+        "DATE_FORMAT": {
+          "python_name": "DATE_FORMAT",
+          "import_stmt": "from tt.ghostfolio_common import DATE_FORMAT",
+          "translation_notes": "Define as constant, likely '%Y-%m-%d'"
+        },
+        "getSum": {
+          "python_name": "get_sum",
+          "import_stmt": "from tt.ghostfolio_common import get_sum",
+          "translation_notes": "Implement wrapper around sum() that handles Decimals properly"
+        },
+        "parseDate": {
+          "python_name": "parse_date",
+          "import_stmt": "from tt.ghostfolio_common import parse_date",
+          "translation_notes": "Parse date strings to datetime objects, handling multiple formats"
+        },
+        "resetHours": {
+          "python_name": "reset_hours",
+          "import_stmt": "from tt.ghostfolio_common import reset_hours",
+          "translation_notes": "Same as start_of_day"
+        }
+      }
+    },
+    "decorators": {
+      "python_package": "custom",
+      "mappings": {
+        "@LogPerformance": {
+          "python_name": "log_performance",
+          "import_stmt": "from tt.decorators import log_performance",
+          "translation_notes": "Implement decorator that logs execution time. Use functools.wraps. Can use logging module or print statements."
+        }
+      }
+    },
+    "type_mappings": {
+      "Big": "Decimal",
+      "Date": "datetime",
+      "string": "str",
+      "number": "float | int",
+      "boolean": "bool",
+      "any": "Any",
+      "void": "None",
+      "Promise<T>": "Awaitable[T]",
+      "Array<T>": "list[T]",
+      "Record<K, V>": "dict[K, V]",
+      "null": "None",
+      "undefined": "None"
+    }
+  }
+}
