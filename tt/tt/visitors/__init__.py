@@ -21,6 +21,7 @@ from .expressions import (
     visit_parenthesized_expression,
     visit_subscript_expression,
     visit_as_expression,
+    visit_object,
 )
 
 from .statements import (
@@ -86,4 +87,5 @@ VISITOR_MAP = {
     "optional_chain": visit_optional_chain,
     "type_annotation": visit_type_annotation,
     "non_null_expression": visit_non_null_assertion,
+    "object": visit_object,
 }

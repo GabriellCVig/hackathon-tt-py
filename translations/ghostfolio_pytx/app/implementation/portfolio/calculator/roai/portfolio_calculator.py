@@ -2,7 +2,7 @@ from app.wrapper.portfolio.calculator.portfolio_calculator import PortfolioCalcu
 from decimal import Decimal
 
 
-class RoaiPortfolioCalculator:
+class RoaiPortfolioCalculator(PortfolioCalculator):
     self.chart_dates = None
 
     def calculate_overall_performance(self, positions):
@@ -43,7 +43,7 @@ class RoaiPortfolioCalculator:
                 if not current_position.quantity.eq(0):
                     logger.warn(f'Missing historical market data for {currentPosition.symbol} ({currentPosition.dataSource})', 'PortfolioCalculator')
                     has_errors = True
-        return activities_count [x for x in self.activities if (# TODO: multi-line arrow function with params ())(x)].length created_at date() errors historical_data total_liabilities_with_currency_effect big(0)
+        return {"current_value_in_base_currency": current_value_in_base_currency, "has_errors": has_errors, "positions": positions, "total_fees_with_currency_effect": total_fees_with_currency_effect, "total_interest_with_currency_effect": total_interest_with_currency_effect, "total_investment": total_investment, "total_investment_with_currency_effect": total_investment_with_currency_effect, "activities_count": [x for x in self.activities if (# TODO: multi-line arrow function with params ())(x)].length, "created_at": date(), "errors": , "historical_data": , "total_liabilities_with_currency_effect": big(0)}
 
     def get_performance_calculation_type(self):
         return performance_calculation_type.roai
@@ -58,8 +58,8 @@ class RoaiPortfolioCalculator:
     symbol
   }):
         current_exchange_rate = exchange_rates[format(date(), date_format)]
-        current_values = 
-        current_values_with_currency_effect = 
+        current_values = {}
+        current_values_with_currency_effect = {}
         fees = big(0)
         fees_at_start_date = big(0)
         fees_at_start_date_with_currency_effect = big(0)
@@ -74,15 +74,15 @@ class RoaiPortfolioCalculator:
         initial_value_with_currency_effect = None
         investment_at_start_date = None
         investment_at_start_date_with_currency_effect = None
-        investment_values_accumulated = 
-        investment_values_accumulated_with_currency_effect = 
-        investment_values_with_currency_effect = 
+        investment_values_accumulated = {}
+        investment_values_accumulated_with_currency_effect = {}
+        investment_values_with_currency_effect = {}
         last_average_price = big(0)
         last_average_price_with_currency_effect = big(0)
-        net_performance_values = 
-        net_performance_values_with_currency_effect = 
-        time_weighted_investment_values = 
-        time_weighted_investment_values_with_currency_effect = 
+        net_performance_values = {}
+        net_performance_values_with_currency_effect = {}
+        time_weighted_investment_values = {}
+        time_weighted_investment_values_with_currency_effect = {}
         total_account_balance_in_base_currency = big(0)
         total_dividend = big(0)
         total_dividend_in_base_currency = big(0)
@@ -101,7 +101,7 @@ class RoaiPortfolioCalculator:
 # Clone orders to keep the original values in this.orders        orders = clone_deep([x for x in self.activities if (# TODO: multi-line arrow function with params ())(x)])
         is_cash = orders[0].symbol_profile.asset_sub_class == 'CASH'
         if :
-            return current_values current_values_with_currency_effect fees_with_currency_effect big(0) gross_performance big(0) gross_performance_percentage big(0) gross_performance_percentage_with_currency_effect big(0) gross_performance_with_currency_effect big(0) has_errors False initial_value big(0) initial_value_with_currency_effect big(0) investment_values_accumulated investment_values_accumulated_with_currency_effect investment_values_with_currency_effect net_performance big(0) net_performance_percentage big(0) net_performance_percentage_with_currency_effect_map net_performance_values net_performance_values_with_currency_effect net_performance_with_currency_effect_map time_weighted_investment big(0) time_weighted_investment_values time_weighted_investment_values_with_currency_effect time_weighted_investment_with_currency_effect big(0) total_account_balance_in_base_currency big(0) total_dividend big(0) total_dividend_in_base_currency big(0) total_interest big(0) total_interest_in_base_currency big(0) total_investment big(0) total_investment_with_currency_effect big(0) total_liabilities big(0) total_liabilities_in_base_currency big(0)
+            return {"current_values": {}, "current_values_with_currency_effect": {}, "fees_with_currency_effect": big(0), "gross_performance": big(0), "gross_performance_percentage": big(0), "gross_performance_percentage_with_currency_effect": big(0), "gross_performance_with_currency_effect": big(0), "has_errors": False, "initial_value": big(0), "initial_value_with_currency_effect": big(0), "investment_values_accumulated": {}, "investment_values_accumulated_with_currency_effect": {}, "investment_values_with_currency_effect": {}, "net_performance": big(0), "net_performance_percentage": big(0), "net_performance_percentage_with_currency_effect_map": {}, "net_performance_values": {}, "net_performance_values_with_currency_effect": {}, "net_performance_with_currency_effect_map": {}, "time_weighted_investment": big(0), "time_weighted_investment_values": {}, "time_weighted_investment_values_with_currency_effect": {}, "time_weighted_investment_with_currency_effect": big(0), "total_account_balance_in_base_currency": big(0), "total_dividend": big(0), "total_dividend_in_base_currency": big(0), "total_interest": big(0), "total_interest_in_base_currency": big(0), "total_investment": big(0), "total_investment_with_currency_effect": big(0), "total_liabilities": big(0), "total_liabilities_in_base_currency": big(0)}
         date_of_first_transaction = date(orders[0].date)
         end_date_string = format(end, date_format)
         start_date_string = format(start, date_format)
@@ -114,11 +114,11 @@ class RoaiPortfolioCalculator:
             if is_cash:
                 unit_price_at_end_date = big(1)
         if not unit_price_at_end_date or (not unit_price_at_start_date and is_before(date_of_first_transaction, start)):
-            return current_values current_values_with_currency_effect fees_with_currency_effect big(0) gross_performance big(0) gross_performance_percentage big(0) gross_performance_percentage_with_currency_effect big(0) gross_performance_with_currency_effect big(0) has_errors True initial_value big(0) initial_value_with_currency_effect big(0) investment_values_accumulated investment_values_accumulated_with_currency_effect investment_values_with_currency_effect net_performance big(0) net_performance_percentage big(0) net_performance_percentage_with_currency_effect_map net_performance_with_currency_effect_map net_performance_values net_performance_values_with_currency_effect time_weighted_investment big(0) time_weighted_investment_values time_weighted_investment_values_with_currency_effect time_weighted_investment_with_currency_effect big(0) total_account_balance_in_base_currency big(0) total_dividend big(0) total_dividend_in_base_currency big(0) total_interest big(0) total_interest_in_base_currency big(0) total_investment big(0) total_investment_with_currency_effect big(0) total_liabilities big(0) total_liabilities_in_base_currency big(0)
-# Add a synthetic order at the start and the end date        orders.append(date start_date_string fee big(0) fee_in_base_currency big(0) item_type 'start' quantity big(0) symbol_profile asset_sub_class 'CASH' if is_cash else None type 'BUY' unit_price unit_price_at_start_date)
-        orders.append(date end_date_string fee big(0) fee_in_base_currency big(0) item_type 'end' symbol_profile asset_sub_class 'CASH' if is_cash else None quantity big(0) type 'BUY' unit_price unit_price_at_end_date)
+            return {"current_values": {}, "current_values_with_currency_effect": {}, "fees_with_currency_effect": big(0), "gross_performance": big(0), "gross_performance_percentage": big(0), "gross_performance_percentage_with_currency_effect": big(0), "gross_performance_with_currency_effect": big(0), "has_errors": True, "initial_value": big(0), "initial_value_with_currency_effect": big(0), "investment_values_accumulated": {}, "investment_values_accumulated_with_currency_effect": {}, "investment_values_with_currency_effect": {}, "net_performance": big(0), "net_performance_percentage": big(0), "net_performance_percentage_with_currency_effect_map": {}, "net_performance_with_currency_effect_map": {}, "net_performance_values": {}, "net_performance_values_with_currency_effect": {}, "time_weighted_investment": big(0), "time_weighted_investment_values": {}, "time_weighted_investment_values_with_currency_effect": {}, "time_weighted_investment_with_currency_effect": big(0), "total_account_balance_in_base_currency": big(0), "total_dividend": big(0), "total_dividend_in_base_currency": big(0), "total_interest": big(0), "total_interest_in_base_currency": big(0), "total_investment": big(0), "total_investment_with_currency_effect": big(0), "total_liabilities": big(0), "total_liabilities_in_base_currency": big(0)}
+# Add a synthetic order at the start and the end date        orders.append({"date": start_date_string, "fee": big(0), "fee_in_base_currency": big(0), "item_type": 'start', "quantity": big(0), "symbol_profile": {"data_source": data_source, "symbol": symbol, "asset_sub_class": 'CASH' if is_cash else None}, "type": 'BUY', "unit_price": unit_price_at_start_date})
+        orders.append({"date": end_date_string, "fee": big(0), "fee_in_base_currency": big(0), "item_type": 'end', "symbol_profile": {"data_source": data_source, "symbol": symbol, "asset_sub_class": 'CASH' if is_cash else None}, "quantity": big(0), "type": 'BUY', "unit_price": unit_price_at_end_date})
         last_unit_price = None
-        orders_by_date = 
+        orders_by_date = {}
         for order in orders:
             orders_by_date[order.date] = orders_by_date[order.date] or 
             orders_by_date[order.date].append(order)
@@ -134,7 +134,7 @@ class RoaiPortfolioCalculator:
                 for order in orders_by_date[date_string]:
                     order.unit_price_from_market_data = market_symbol_map[date_string][symbol] or last_unit_price
             else:
-                orders.append(date date_string fee big(0) fee_in_base_currency big(0) quantity big(0) symbol_profile asset_sub_class 'CASH' if is_cash else None type 'BUY' unit_price market_symbol_map[date_string][symbol] or last_unit_price unit_price_from_market_data market_symbol_map[date_string][symbol] or last_unit_price)
+                orders.append({"date": date_string, "fee": big(0), "fee_in_base_currency": big(0), "quantity": big(0), "symbol_profile": {"data_source": data_source, "symbol": symbol, "asset_sub_class": 'CASH' if is_cash else None}, "type": 'BUY', "unit_price": market_symbol_map[date_string][symbol] or last_unit_price, "unit_price_from_market_data": market_symbol_map[date_string][symbol] or last_unit_price})
             latest_activity = orders.at(-1)
             last_unit_price = latest_activity.unit_price_from_market_data or latest_activity.unit_price
 # Sort orders so that the start and end placeholder order are at the correct# position        orders = sort_by(orders, # TODO: multi-line arrow function with params ())
@@ -274,9 +274,9 @@ class RoaiPortfolioCalculator:
         fees_per_unit = ((fees - fees_at_start_date) / total_units) if total_units.gt(0) else big(0)
         fees_per_unit_with_currency_effect = ((fees_with_currency_effect - fees_at_start_date_with_currency_effect) / total_units) if total_units.gt(0) else big(0)
         net_performance_percentage = (total_net_performance / time_weighted_average_investment_between_start_and_end_date) if time_weighted_average_investment_between_start_and_end_date.gt(0) else big(0)
-        net_performance_percentage_with_currency_effect_map = 
-        net_performance_with_currency_effect_map = 
-        for dateRange in '1d' '1y' '5y' 'max' 'mtd' 'wtd' 'ytd' *[(# TODO: multi-line arrow function with params ())(x) for x in [x for x in each_year_of_interval() if (# TODO: multi-line arrow function with params ())(x)]]:
+        net_performance_percentage_with_currency_effect_map = {}
+        net_performance_with_currency_effect_map = {}
+        for dateRange in '1d' '1y' '5y' 'max' 'mtd' 'wtd' 'ytd' *[(# TODO: multi-line arrow function with params ())(x) for x in [x for x in each_year_of_interval({"end": end, "start": start}) if (# TODO: multi-line arrow function with params ())(x)]]:
             date_interval = get_interval_from_date_range(date_range)
             end_date = date_interval.end_date
             start_date = date_interval.start_date
@@ -338,5 +338,5 @@ class RoaiPortfolioCalculator:
         Net performance with currency effect: {netPerformancePercentageWithCurrencyEffectMap[
           'max'
         ].toFixed(2)}%')
-        return gross_performance total_gross_performance gross_performance_with_currency_effect total_gross_performance_with_currency_effect has_errors total_units.gt(0) and (not initial_value or not unit_price_at_end_date) net_performance total_net_performance time_weighted_investment time_weighted_average_investment_between_start_and_end_date time_weighted_investment_with_currency_effect time_weighted_average_investment_between_start_and_end_date_with_currency_effect
+        return {"current_values": current_values, "current_values_with_currency_effect": current_values_with_currency_effect, "fees_with_currency_effect": fees_with_currency_effect, "gross_performance_percentage": gross_performance_percentage, "gross_performance_percentage_with_currency_effect": gross_performance_percentage_with_currency_effect, "initial_value": initial_value, "initial_value_with_currency_effect": initial_value_with_currency_effect, "investment_values_accumulated": investment_values_accumulated, "investment_values_accumulated_with_currency_effect": investment_values_accumulated_with_currency_effect, "investment_values_with_currency_effect": investment_values_with_currency_effect, "net_performance_percentage": net_performance_percentage, "net_performance_percentage_with_currency_effect_map": net_performance_percentage_with_currency_effect_map, "net_performance_values": net_performance_values, "net_performance_values_with_currency_effect": net_performance_values_with_currency_effect, "net_performance_with_currency_effect_map": net_performance_with_currency_effect_map, "time_weighted_investment_values": time_weighted_investment_values, "time_weighted_investment_values_with_currency_effect": time_weighted_investment_values_with_currency_effect, "total_account_balance_in_base_currency": total_account_balance_in_base_currency, "total_dividend": total_dividend, "total_dividend_in_base_currency": total_dividend_in_base_currency, "total_interest": total_interest, "total_interest_in_base_currency": total_interest_in_base_currency, "total_investment": total_investment, "total_investment_with_currency_effect": total_investment_with_currency_effect, "total_liabilities": total_liabilities, "total_liabilities_in_base_currency": total_liabilities_in_base_currency, "gross_performance": total_gross_performance, "gross_performance_with_currency_effect": total_gross_performance_with_currency_effect, "has_errors": total_units.gt(0) and (not initial_value or not unit_price_at_end_date), "net_performance": total_net_performance, "time_weighted_investment": time_weighted_average_investment_between_start_and_end_date, "time_weighted_investment_with_currency_effect": time_weighted_average_investment_between_start_and_end_date_with_currency_effect}
 

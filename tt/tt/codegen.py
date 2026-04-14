@@ -41,6 +41,71 @@ class CodeGenerator:
         code = self._visit_internal(root_node, self.ctx)
         return code
     
+    def _visit_leaf(self, node: tree_sitter.Node) -> str:
+        """Handle leaf nodes and simple literal conversions.
+        
+        Args:
+            node: AST node to process
+            
+        Returns:
+            Generated Python code for leaf node
+        """
+        node_type = node.type
+        
+        if node_type == "identifier":
+            return self._handle_identifier(node)
+        elif node_type == "property_identifier":
+            text = node.text.decode("utf-8")
+            return _snake_case(text)
+        elif node_type == "this":
+            return "self"
+        elif node_type in ("true", "false"):
+            return node.text.decode("utf-8").capitalize()
+        elif node_type in ("null", "undefined"):
+            return "None"
+        elif node_type == "number":
+            return node.text.decode("utf-8")
+        elif node_type == "string":
+            return node.text.decode("utf-8")
+        elif node_type == "comment":
+            return self._handle_comment(node)
+        else:
+            return ""
+    
+    def _visit_composite(self, node: tree_sitter.Node) -> str:
+        """Handle composite nodes (program, export, default recursion).
+        
+        Args:
+            node: AST node to process
+            
+        Returns:
+            Generated Python code for composite node
+        """
+        node_type = node.type
+        
+        if node_type == "program":
+            parts = []
+            for child in node.named_children:
+                result = self._visit_internal(child, self.ctx)
+                if result and result.strip():
+                    parts.append(result)
+            return "\n".join(parts)
+        elif node_type == "export_statement":
+            for child in node.named_children:
+                if child.type != "export":
+                    return self._visit_internal(child, self.ctx)
+            return ""
+        elif node_type == "import_statement":
+            return ""
+        else:
+            # Default: visit children and concatenate
+            parts = []
+            for child in node.named_children:
+                result = self._visit_internal(child, self.ctx)
+                if result:
+                    parts.append(result)
+            return " ".join(parts) if parts else ""
+    
     def _visit_internal(self, node: tree_sitter.Node, ctx: TranslationContext) -> str:
         """Internal visit method that matches the signature expected by visitors.
         
@@ -62,66 +127,15 @@ class CodeGenerator:
         # Check VISITOR_MAP for specialized handlers
         if node_type in VISITOR_MAP:
             visitor_func = VISITOR_MAP[node_type]
-            # Pass node, self.ctx (not the parameter), and this method as recursive callback
             return visitor_func(node, self.ctx, self._visit_internal)
         
-        # Handle leaf nodes and special cases
-        if node_type == "identifier":
-            return self._handle_identifier(node)
+        # Try leaf nodes first
+        leaf_result = self._visit_leaf(node)
+        if leaf_result:
+            return leaf_result
         
-        elif node_type == "property_identifier":
-            text = node.text.decode("utf-8")
-            return _snake_case(text)
-        
-        elif node_type == "this":
-            return "self"
-        
-        elif node_type in ("true", "false"):
-            return node.text.decode("utf-8").capitalize()
-        
-        elif node_type in ("null", "undefined"):
-            return "None"
-        
-        elif node_type == "number":
-            return node.text.decode("utf-8")
-        
-        elif node_type == "string":
-            # Convert to Python string (handle both single and double quotes)
-            text = node.text.decode("utf-8")
-            # Keep quotes as-is for now
-            return text
-        
-        elif node_type == "comment":
-            return self._handle_comment(node)
-        
-        elif node_type == "program":
-            # Visit all top-level children
-            parts = []
-            for child in node.named_children:
-                result = self._visit_internal(child, self.ctx)
-                if result and result.strip():
-                    parts.append(result)
-            return "\n".join(parts)
-        
-        elif node_type == "export_statement":
-            # Visit the declaration inside export
-            for child in node.named_children:
-                if child.type != "export":
-                    return self._visit_internal(child, self.ctx)
-            return ""
-        
-        elif node_type == "import_statement":
-            # Skip imports - they are handled by import_mapper
-            return ""
-        
-        # Default: visit children and concatenate
-        else:
-            parts = []
-            for child in node.named_children:
-                result = self._visit_internal(child, self.ctx)
-                if result:
-                    parts.append(result)
-            return " ".join(parts) if parts else ""
+        # Fall back to composite nodes
+        return self._visit_composite(node)
     
     def _handle_identifier(self, node: tree_sitter.Node) -> str:
         """Handle identifier node conversion.

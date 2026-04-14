@@ -12,6 +12,38 @@ def _snake(name: str) -> str:
     return re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 
+def _handle_big_method_call(obj: str, method: str, args_text: str):
+    """Handle Big.js method calls."""
+    if method == "plus":
+        return f"({obj} + {args_text})"
+    elif method == "minus":
+        return f"({obj} - {args_text})"
+    elif method == "mul":
+        return f"({obj} * {args_text})"
+    elif method == "div":
+        return f"({obj} / {args_text})"
+    elif method == "toNumber":
+        return f"float({obj})"
+    elif method == "toFixed":
+        return f"round({obj}, {args_text})" if args_text else f"round({obj})"
+    elif method == "toString":
+        return f"str({obj})"
+    return None
+
+
+def _handle_array_method_call(obj: str, method: str, args_text: str):
+    """Handle array method calls."""
+    if method == "push":
+        return f"{obj}.append({args_text})"
+    elif method == "filter":
+        return f"[x for x in {obj} if ({args_text})(x)]"
+    elif method == "map":
+        return f"[({args_text})(x) for x in {obj}]"
+    elif method == "length":
+        return f"len({obj})"
+    return None
+
+
 def visit_call_expression(node: Node, ctx: TranslationContext, visit_node) -> str:
     """
     Handles function/method calls.
@@ -34,56 +66,31 @@ def visit_call_expression(node: Node, ctx: TranslationContext, visit_node) -> st
     args_text = ''
     
     if args_node:
-        # Extract argument expressions (skip parentheses)
         arg_parts = []
         for child in args_node.children:
             if child.type not in ('(', ')', ','):
                 arg_parts.append(visit_node(child, ctx))
         args_text = ', '.join(arg_parts)
     
-    # Handle Big.js method calls
+    # Handle method calls
     if '.' in func_text:
         obj, method = func_text.rsplit('.', 1)
         
-        # Big.js arithmetic methods -> operators
-        if method == 'plus':
-            return f'({obj} + {args_text})'
-        elif method == 'minus':
-            return f'({obj} - {args_text})'
-        elif method == 'mul':
-            return f'({obj} * {args_text})'
-        elif method == 'div':
-            return f'({obj} / {args_text})'
-        elif method == 'toNumber':
-            return f'float({obj})'
-        elif method == 'toFixed':
-            if args_text:
-                return f'round({obj}, {args_text})'
-            return f'round({obj})'
-        elif method == 'toString':
-            return f'str({obj})'
+        big_result = _handle_big_method_call(obj, method, args_text)
+        if big_result:
+            return big_result
         
-        # Array methods
-        elif method == 'push':
-            return f'{obj}.append({args_text})'
-        elif method == 'filter':
-            # .filter(predicate) -> list comprehension or filter()
-            return f'[x for x in {obj} if ({args_text})(x)]'
-        elif method == 'map':
-            # .map(fn) -> list comprehension
-            return f'[({args_text})(x) for x in {obj}]'
-        elif method == 'length':
-            return f'len({obj})'
+        array_result = _handle_array_method_call(obj, method, args_text)
+        if array_result:
+            return array_result
     
-    # Check if function needs library mapping
-    # Assumption: ctx has import_mapper method or attribute
+    # Check for library mapping
     if hasattr(ctx, 'import_mapper'):
         mapped = ctx.import_mapper.get(func_text)
         if mapped:
             func_text = mapped
     
     return f'{func_text}({args_text})'
-
 
 def visit_binary_expression(node: Node, ctx: TranslationContext, visit_node) -> str:
     """
@@ -401,6 +408,50 @@ def visit_subscript_expression(node: Node, ctx: TranslationContext, visit_node) 
     index_text = visit_node(index, ctx)
     
     return f'{obj_text}[{index_text}]'
+
+
+def visit_object(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """
+    Handles object literals: { key1: value1, key2: value2 }
+    Translates to Python dict: {"key1": value1, "key2": value2}
+    """
+    pairs = []
+    
+    for child in node.named_children:
+        if child.type == "pair":
+            # Extract key and value
+            key_node = None
+            value_node = None
+            
+            for pair_child in child.named_children:
+                if key_node is None:
+                    key_node = pair_child
+                else:
+                    value_node = pair_child
+                    break
+            
+            if key_node and value_node:
+                # Get key text (could be identifier or string)
+                if key_node.type in ("property_identifier", "identifier"):
+                    key_text = key_node.text.decode("utf-8")
+                    key_str = f"\"{_snake(key_text)}\""
+                elif key_node.type == "string":
+                    key_str = key_node.text.decode("utf-8")
+                else:
+                    key_str = visit_node(key_node, ctx)
+                
+                value_str = visit_node(value_node, ctx)
+                pairs.append(f"{key_str}: {value_str}")
+        
+        elif child.type == "shorthand_property_identifier":
+            # Shorthand: {foo} -> {"foo": foo}
+            prop_name = child.text.decode("utf-8")
+            snake_name = _snake(prop_name)
+            pairs.append(f"\"{snake_name}\": {snake_name}")
+    
+    if pairs:
+        return "{" + ", ".join(pairs) + "}"
+    return "{}"
 
 
 def visit_as_expression(node: Node, ctx: TranslationContext, visit_node) -> str:

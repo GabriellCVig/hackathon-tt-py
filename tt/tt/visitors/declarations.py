@@ -44,22 +44,20 @@ def visit_class_declaration(node: Node, ctx: TranslationContext, visit_node) -> 
     
     # Extract base class from heritage clause
     base_class = 'ABC' if is_abstract else None
-    heritage = node.child_by_field_name('heritage')
-    if heritage:
-        extends_clause = heritage.child_by_field_name('clause')
-        if not extends_clause:
-            # Look for extends_clause in children
-            for child in heritage.children:
-                if child.type == 'extends_clause':
-                    extends_clause = child
+    # Look for class_heritage directly in node children
+    for child in node.children:
+        if child.type == 'class_heritage':
+            # Found heritage, look for extends_clause inside
+            for heritage_child in child.children:
+                if heritage_child.type in ('extends_clause',):
+                    # Get identifier from extends clause
+                    for extends_child in heritage_child.children:
+                        if extends_child.type in ('identifier', 'type_identifier'):
+                            base_class = extends_child.text.decode('utf-8')
+                            break
                     break
-        
-        if extends_clause:
-            for child in extends_clause.named_children:
-                if child.type == 'identifier' or child.type == 'type_identifier':
-                    base_class = child.text.decode('utf-8')
-                    break
-    
+            break
+
     # Set current class context
     ctx.current_class = class_name
     

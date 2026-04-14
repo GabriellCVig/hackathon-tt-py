@@ -55,6 +55,40 @@ class ImportMapper:
         # No mapping found - return as-is
         return f"{class_name}({args})"
 
+    def _map_date_fns(self, func_name: str, args: list[str]) -> str | None:
+        """Map date-fns functions to Python equivalents."""
+        if func_name == "differenceInDays" and len(args) == 2:
+            return f"({args[0]} - {args[1]}).days"
+        elif func_name == "isBefore" and len(args) == 2:
+            return f"{args[0]} < {args[1]}"
+        elif func_name == "isAfter" and len(args) == 2:
+            return f"{args[0]} > {args[1]}"
+        elif func_name == "format" and len(args) == 2:
+            mapping = self._libraries.get("date-fns", {}).get("mappings", {}).get(func_name)
+            if mapping:
+                self._needed_imports.add(mapping.get("import_stmt", ""))
+                return f"{mapping[python_name]}({args[0]}, {args[1]})"
+        elif func_name == "parseISO" and len(args) == 1:
+            self._needed_imports.add("from datetime import datetime")
+            return f"datetime.fromisoformat({args[0]}.replace(Z, +00:00))"
+        elif func_name == "min" and len(args) == 1:
+            return f"min({args[0]})"
+        return None
+    
+    def _map_lodash(self, func_name: str, args: list[str]) -> str | None:
+        """Map lodash functions to Python equivalents."""
+        if func_name == "isNumber" and len(args) == 1:
+            self._needed_imports.add("from decimal import Decimal")
+            return f"isinstance({args[0]}, (int, float, Decimal))"
+        elif func_name == "sortBy" and len(args) >= 2:
+            return f"sorted({args[0]}, key={args[1]})"
+        elif func_name == "cloneDeep" and len(args) == 1:
+            self._needed_imports.add("from copy import deepcopy")
+            return f"deepcopy({args[0]})"
+        elif func_name == "sum" and len(args) == 1:
+            return f"sum({args[0]})"
+        return None
+    
     def map_function_call(self, func_name: str, args: list[str]) -> str:
         """Map a TypeScript function call to Python.
 
@@ -124,6 +158,109 @@ class ImportMapper:
         args_str = ", ".join(args)
         return f"{func_name}({args_str})"
 
+    def _map_big_method(self, method: str, obj: str, args: list[str]) -> str | None:
+        """Map Big.js methods to Python operators."""
+        if method == "plus":
+            return f"{obj} + {args[0]}" if args else obj
+        elif method == "minus":
+            return f"{obj} - {args[0]}" if args else obj
+        elif method == "mul":
+            return f"{obj} * {args[0]}" if args else obj
+        elif method == "div":
+            return f"{obj} / {args[0]}" if args else obj
+        elif method == "toNumber":
+            return f"float({obj})"
+        elif method == "toFixed" and args:
+            return f"round({obj}, {args[0]})"
+        elif method == "gt":
+            return f"{obj} > {args[0]}" if args else obj
+        elif method == "gte":
+            return f"{obj} >= {args[0]}" if args else obj
+        elif method == "lt":
+            return f"{obj} < {args[0]}" if args else obj
+        elif method == "lte":
+            return f"{obj} <= {args[0]}" if args else obj
+        elif method == "eq":
+            return f"{obj} == {args[0]}" if args else obj
+        elif method == "abs":
+            return f"abs({obj})"
+        return None
+    
+    def _map_array_method(self, method: str, obj: str, args: list[str]) -> str | None:
+        """Map array methods to Python equivalents."""
+        args_str = ", ".join(args) if args else ""
+        
+        if method == "push":
+            return f"{obj}.append({args_str})"
+        elif method == "filter":
+            return f"[x for x in {obj} if {args[0]}(x)]" if args else f"list({obj})"
+        elif method == "map":
+            return f"[{args[0]}(x) for x in {obj}]" if args else f"list({obj})"
+        elif method == "length":
+            return f"len({obj})"
+        elif method == "includes":
+            return f"{args[0]} in {obj}" if args else "False"
+        elif method == "find":
+            return f"next((x for x in {obj} if {args[0]}(x)), None)" if args else "None"
+        elif method == "reduce":
+            self._needed_imports.add("import functools")
+            if len(args) >= 2:
+                return f"functools.reduce({args[0]}, {obj}, {args[1]})"
+            elif len(args) == 1:
+                return f"functools.reduce({args[0]}, {obj})"
+            return obj
+        elif method == "forEach":
+            return f"# TODO: forEach - convert to for loop: for x in {obj}: {args[0]}(x)"
+        elif method == "some":
+            return f"any({args[0]}(x) for x in {obj})" if args else f"any({obj})"
+        elif method == "every":
+            return f"all({args[0]}(x) for x in {obj})" if args else f"all({obj})"
+        elif method == "slice":
+            if len(args) == 2:
+                return f"{obj}[{args[0]}:{args[1]}]"
+            elif len(args) == 1:
+                return f"{obj}[{args[0]}:]"
+            return f"{obj}[:]"
+        elif method == "splice":
+            if len(args) >= 2:
+                return f"del {obj}[{args[0]}:{args[0]}+{args[1]}]"
+            return obj
+        elif method == "join":
+            return f"{args[0]}.join({obj})" if args else f".join({obj})"
+        return None
+    
+    def _map_string_method(self, method: str, obj: str, args_str: str) -> str | None:
+        """Map string methods to Python equivalents."""
+        if method == "toString":
+            return f"str({obj})"
+        elif method == "startsWith":
+            return f"{obj}.startswith({args_str})"
+        elif method == "endsWith":
+            return f"{obj}.endswith({args_str})"
+        return None
+    
+    def _map_dict_method(self, method: str, obj: str, args: list[str]) -> str | None:
+        """Map Map/Object methods to Python dict equivalents."""
+        args_str = ", ".join(args) if args else ""
+        
+        if method == "keys":
+            return f"{obj}.keys()"
+        elif method == "values":
+            return f"{obj}.values()"
+        elif method == "entries":
+            return f"{obj}.items()"
+        elif method == "has":
+            return f"{args[0]} in {obj}" if args else "False"
+        elif method == "get":
+            return f"{obj}.get({args_str})"
+        elif method == "set":
+            if len(args) >= 2:
+                return f"{obj}[{args[0]}] = {args[1]}"
+            return obj
+        elif method == "delete":
+            return f"del {obj}[{args[0]}]" if args else obj
+        return None
+    
     def map_method_call(self, obj: str, method: str, args: list[str]) -> str:
         """Map a TypeScript method call to Python.
 

@@ -11,9 +11,9 @@
     "Evaluate folder unchanged": "OK",
     "Template file bypass": "OK",
     "Premade calculator": "OK",
-    "String-literal smuggling": "FAIL",
+    "String-literal smuggling": "OK",
     "Explicit implementation LLM review": "SKIPPED"
   },
   "legal": false,
-  "failures": 2
+  "failures": 1
 }
