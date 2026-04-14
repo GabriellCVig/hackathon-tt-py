@@ -212,6 +212,17 @@ def visit_continue_statement(node: Node, ctx: TranslationContext, visit_node) ->
     return f"{indent}continue\n"
 
 
+def _translate_case_body(case, ctx, visit_node):
+    """Translate the body of a single switch case."""
+    result = ""
+    for stmt in case.named_children[1:]:
+        if stmt.type not in ["switch_case", "switch_default"]:
+            stmt_str = visit_node(stmt, ctx)
+            if stmt_str:
+                result += stmt_str
+    return result
+
+
 def visit_switch_statement(node: Node, ctx: TranslationContext, visit_node) -> str:
     """Translate switch statement to if/elif/else chain"""
     value = node.child_by_field_name("value")
@@ -228,35 +239,25 @@ def visit_switch_statement(node: Node, ctx: TranslationContext, visit_node) -> s
     cases = [child for child in body.named_children if child.type == "switch_case"]
     default = [child for child in body.named_children if child.type == "switch_default"]
     
+    # Translate each case
     for i, case in enumerate(cases):
         case_value = case.child_by_field_name("value")
         if not case_value:
             continue
         
         case_val_str = visit_node(case_value, ctx)
+        kw = "if" if i == 0 else "elif"
+        result += f"{indent}{kw} {value_str} == {case_val_str}:\n"
         
-        if i == 0:
-            result += f"{indent}if {value_str} == {case_val_str}:\n"
-        else:
-            result += f"{indent}elif {value_str} == {case_val_str}:\n"
-        
-        # Translate case body
         ctx.indent_level += 1
-        for stmt in case.named_children[1:]:  # Skip the value node
-            if stmt.type not in ["switch_case", "switch_default"]:
-                stmt_str = visit_node(stmt, ctx)
-                if stmt_str:
-                    result += stmt_str
+        result += _translate_case_body(case, ctx, visit_node)
         ctx.indent_level -= 1
     
     # Handle default case
     if default:
         result += f"{indent}else:\n"
         ctx.indent_level += 1
-        for stmt in default[0].named_children:
-            stmt_str = visit_node(stmt, ctx)
-            if stmt_str:
-                result += stmt_str
+        result += _translate_case_body(default[0], ctx, visit_node)
         ctx.indent_level -= 1
     
     return result
