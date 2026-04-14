@@ -11,8 +11,8 @@ if TYPE_CHECKING:
 
 def _snake(name: str) -> str:
     """Convert camelCase/PascalCase to snake_case."""
-    s = re.sub(r'([a-z0-9])([A-Z])', r'_', name)
-    return re.sub(r'([A-Z]+)([A-Z][a-z])', r'_', s).lower()
+    s1 = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', name)
+    return re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 
 def visit_class_declaration(node: Node, ctx: TranslationContext, visit_node) -> str:
@@ -35,7 +35,7 @@ def visit_class_declaration(node: Node, ctx: TranslationContext, visit_node) -> 
     # Extract class name
     class_name = None
     for child in node.children:
-        if child.type == 'identifier':
+        if child.type in ('identifier', 'type_identifier'):
             class_name = child.text.decode('utf-8')
             break
     

@@ -17,9 +17,10 @@ def parse_file(file_path: str | Path) -> tree_sitter.Node:
         Root node of the parsed AST
     """
     path = Path(file_path)
-    with open(path, rb) as f:
+    with open(path, 'rb') as f:
         source_code = f.read()
     
-    parser = tree_sitter.Parser(language_typescript())
+    parser = tree_sitter.Parser()
+    parser.language = tree_sitter.Language(language_typescript())
     tree = parser.parse(source_code)
     return tree.root_node

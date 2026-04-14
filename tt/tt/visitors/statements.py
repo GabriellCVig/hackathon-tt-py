@@ -1,168 +1,262 @@
-"""Visitor functions for TypeScript statements (if/for/return/try/throw)"""
+"""Visitor functions for TypeScript statement nodes"""
+from __future__ import annotations
+
 from tree_sitter import Node
 from ..context import TranslationContext
-from ..parser import get_field, get_text, get_children_by_type
 
 
-def visit_if_statement(node: Node, ctx: TranslationContext, visitor_func) -> str:
-    """Translate if/elif/else"""
-    cond_node = get_field(node, "condition")
-    cons_node = get_field(node, "consequence")
-    alt_node = get_field(node, "alternative")
+def visit_if_statement(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """Translate if statement: if (cond) {...} else if {...} else {...}"""
+    condition = node.child_by_field_name("condition")
+    consequence = node.child_by_field_name("consequence")
+    alternative = node.child_by_field_name("alternative")
     
-    if not (cond_node and cons_node):
+    if not condition or not consequence:
         return ""
     
-    cond = visitor_func(cond_node, ctx)
-    indent = ctx.get_indent_str()
-    result = f"{indent}if {cond}:\n"
+    # Translate condition (strip parentheses if present)
+    cond_str = visit_node(condition, ctx)
+    if cond_str.startswith("(") and cond_str.endswith(")"):
+        cond_str = cond_str[1:-1]
     
-    ctx.indent()
-    cons = visitor_func(cons_node, ctx)
-    result += cons if cons else f"{ctx.get_indent_str()}pass\n"
-    ctx.dedent()
+    indent = ctx.indent()
+    result = f"{indent}if {cond_str}:\n"
     
-    # Handle else/elif
-    if alt_node:
-        if alt_node.type == "if_statement":
-            # elif
-            ctx.indent_level -= 1  # Temporarily dedent for elif
-            elif_str = visit_if_statement(alt_node, ctx, visitor_func)
-            result += elif_str.replace("if ", "elif ", 1)
+    # Translate consequence block
+    ctx.indent_level += 1
+    cons_str = visit_node(consequence, ctx)
+    ctx.indent_level -= 1
+    result += cons_str if cons_str else f"{ctx.indent()}    pass\n"
+    
+    # Handle alternative (else if / else)
+    if alternative:
+        alt_indent = ctx.indent()
+        # Check if alternative is another if_statement (else if -> elif)
+        if alternative.type == "if_statement":
+            # Convert "else if" to "elif"
+            alt_str = visit_node(alternative, ctx)
+            # Replace leading "if" with "elif"
+            if alt_str.strip().startswith("if "):
+                result += alt_str.replace("if ", "elif ", 1)
+            else:
+                result += f"{alt_indent}elif {alt_str}"
+        else:
+            result += f"{alt_indent}else:\n"
             ctx.indent_level += 1
-        elif alt_node.type == "else_clause":
-            body_node = get_field(alt_node, "body")
-            result += f"{indent}else:\n"
-            ctx.indent()
-            body = visitor_func(body_node, ctx) if body_node else ""
-            result += body if body else f"{ctx.get_indent_str()}pass\n"
-            ctx.dedent()
+            alt_str = visit_node(alternative, ctx)
+            ctx.indent_level -= 1
+            result += alt_str if alt_str else f"{ctx.indent()}    pass\n"
     
     return result
 
 
-def visit_for_in_statement(node: Node, ctx: TranslationContext, visitor_func) -> str:
-    """Translate for...in/for...of to Python for loop"""
-    left_node = get_field(node, "left")
-    right_node = get_field(node, "right")
-    body_node = get_field(node, "body")
+def visit_for_in_statement(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """Translate for-in/for-of loop: for (const x of arr) -> for x in arr:"""
+    left = node.child_by_field_name("left")
+    right = node.child_by_field_name("right")
+    body = node.child_by_field_name("body")
     
-    if not (left_node and right_node):
+    if not left or not right or not body:
         return ""
     
-    # Get loop variable
-    var_name = ""
-    if left_node.type == "lexical_declaration":
-        declarators = get_children_by_type(left_node, "variable_declarator")
-        if declarators:
-            name_node = get_field(declarators[0], "name")
-            if name_node:
-                var_name = get_text(name_node)
+    # Get loop variable (handle 'const x' or just 'x')
+    if left.type == "lexical_declaration":
+        # Extract variable name from declaration
+        var_node = left.child_by_field_name("declarator") or left.named_children[0] if left.named_children else None
+        if var_node:
+            var_name = var_node.child_by_field_name("name")
+            loop_var = var_name.text.decode() if var_name else "item"
+        else:
+            loop_var = "item"
     else:
-        var_name = get_text(left_node)
+        loop_var = left.text.decode()
     
-    iterable = visitor_func(right_node, ctx)
-    indent = ctx.get_indent_str()
-    result = f"{indent}for {var_name} in {iterable}:\n"
+    # Get iterable
+    iter_str = visit_node(right, ctx)
     
-    ctx.indent()
-    if body_node:
-        body = visitor_func(body_node, ctx)
-        result += body if body else f"{ctx.get_indent_str()}pass\n"
-    else:
-        result += f"{ctx.get_indent_str()}pass\n"
-    ctx.dedent()
+    indent = ctx.indent()
+    result = f"{indent}for {loop_var} in {iter_str}:\n"
+    
+    # Translate body
+    ctx.indent_level += 1
+    body_str = visit_node(body, ctx)
+    ctx.indent_level -= 1
+    result += body_str if body_str else f"{ctx.indent()}    pass\n"
     
     return result
 
 
-def visit_return_statement(node: Node, ctx: TranslationContext, visitor_func) -> str:
-    """Translate return statement"""
-    arg_node = get_field(node, "argument")
-    indent = ctx.get_indent_str()
+def visit_return_statement(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """Translate return statement: return value or just return"""
+    value = node.named_children[0] if node.named_children else None
     
-    if arg_node:
-        value = visitor_func(arg_node, ctx)
-        return f"{indent}return {value}\n"
-    return f"{indent}return\n"
+    indent = ctx.indent()
+    if value:
+        value_str = visit_node(value, ctx)
+        return f"{indent}return {value_str}\n"
+    else:
+        return f"{indent}return\n"
 
 
-def visit_try_statement(node: Node, ctx: TranslationContext, visitor_func) -> str:
-    """Translate try/except"""
-    body_node = get_field(node, "body")
-    handler_node = get_field(node, "handler")
+def visit_try_statement(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """Translate try-catch-finally: try: ... except Exception as e: ... finally: ..."""
+    body = node.child_by_field_name("body")
+    handler = node.child_by_field_name("handler")
+    finalizer = node.child_by_field_name("finalizer")
     
-    if not body_node:
+    if not body:
         return ""
     
-    indent = ctx.get_indent_str()
+    indent = ctx.indent()
     result = f"{indent}try:\n"
     
-    ctx.indent()
-    body = visitor_func(body_node, ctx)
-    result += body if body else f"{ctx.get_indent_str()}pass\n"
-    ctx.dedent()
+    # Translate try body
+    ctx.indent_level += 1
+    body_str = visit_node(body, ctx)
+    ctx.indent_level -= 1
+    result += body_str if body_str else f"{ctx.indent()}    pass\n"
     
-    # Handle catch clause
-    if handler_node:
-        param_node = get_field(handler_node, "parameter")
-        catch_body = get_field(handler_node, "body")
+    # Translate catch handler
+    if handler:
+        # Extract exception variable if present
+        param = handler.child_by_field_name("parameter")
+        exc_var = param.text.decode() if param else "e"
         
-        exc_name = "e"
-        if param_node:
-            exc_name = get_text(param_node)
+        result += f"{indent}except Exception as {exc_var}:\n"
         
-        result += f"{indent}except Exception as {exc_name}:\n"
-        ctx.indent()
-        if catch_body:
-            catch_str = visitor_func(catch_body, ctx)
-            result += catch_str if catch_str else f"{ctx.get_indent_str()}pass\n"
-        else:
-            result += f"{ctx.get_indent_str()}pass\n"
-        ctx.dedent()
+        handler_body = handler.child_by_field_name("body")
+        if handler_body:
+            ctx.indent_level += 1
+            handler_str = visit_node(handler_body, ctx)
+            ctx.indent_level -= 1
+            result += handler_str if handler_str else f"{ctx.indent()}    pass\n"
+    
+    # Translate finally block
+    if finalizer:
+        result += f"{indent}finally:\n"
+        ctx.indent_level += 1
+        finalizer_str = visit_node(finalizer, ctx)
+        ctx.indent_level -= 1
+        result += finalizer_str if finalizer_str else f"{ctx.indent()}    pass\n"
     
     return result
 
 
-def visit_throw_statement(node: Node, ctx: TranslationContext, visitor_func) -> str:
-    """Translate throw to raise"""
-    arg_node = get_field(node, "argument")
-    indent = ctx.get_indent_str()
+def visit_throw_statement(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """Translate throw statement: throw expr -> raise Exception(expr)"""
+    expr = node.named_children[0] if node.named_children else None
     
-    if arg_node:
-        value = visitor_func(arg_node, ctx)
-        return f"{indent}raise {value}\n"
-    return f"{indent}raise Exception()\n"
+    indent = ctx.indent()
+    if expr:
+        # Check if it is a new expression (new Error(...))
+        if expr.type == "new_expression":
+            # Get constructor name and args
+            constructor = expr.child_by_field_name("constructor")
+            args = expr.child_by_field_name("arguments")
+            
+            if constructor:
+                exc_type = constructor.text.decode()
+                # Map common error types
+                exc_map = {
+                    "Error": "Exception",
+                    "TypeError": "TypeError",
+                    "ValueError": "ValueError",
+                }
+                py_exc = exc_map.get(exc_type, "Exception")
+                
+                if args and args.named_children:
+                    args_str = visit_node(args.named_children[0], ctx)
+                    return f"{indent}raise {py_exc}({args_str})\n"
+                else:
+                    return f"{indent}raise {py_exc}()\n"
+        
+        # Fallback: raise Exception with the expression
+        expr_str = visit_node(expr, ctx)
+        return f"{indent}raise Exception({expr_str})\n"
+    else:
+        return f"{indent}raise\n"
 
 
-def visit_expression_statement(node: Node, ctx: TranslationContext, visitor_func) -> str:
-    """Translate expression statement"""
-    expr_node = get_field(node, "expression")
-    if not expr_node:
-        return ""
+def visit_expression_statement(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """Translate expression statement: just visit the inner expression"""
+    expr = node.named_children[0] if node.named_children else None
     
-    indent = ctx.get_indent_str()
-    expr = visitor_func(expr_node, ctx)
-    return f"{indent}{expr}\n"
+    if expr:
+        expr_str = visit_node(expr, ctx)
+        indent = ctx.indent()
+        return f"{indent}{expr_str}\n"
+    return ""
 
 
-def visit_break_statement(node: Node, ctx: TranslationContext) -> str:
-    """Translate break"""
-    indent = ctx.get_indent_str()
+def visit_statement_block(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """Translate statement block: visit all children statements with proper indentation"""
+    result_lines = []
+    
+    for child in node.named_children:
+        child_str = visit_node(child, ctx)
+        if child_str:
+            result_lines.append(child_str)
+    
+    return "".join(result_lines)
+
+
+def visit_break_statement(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """Translate break statement"""
+    indent = ctx.indent()
     return f"{indent}break\n"
 
 
-def visit_continue_statement(node: Node, ctx: TranslationContext) -> str:
-    """Translate continue"""
-    indent = ctx.get_indent_str()
+def visit_continue_statement(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """Translate continue statement"""
+    indent = ctx.indent()
     return f"{indent}continue\n"
 
 
-def visit_statement_block(node: Node, ctx: TranslationContext, visitor_func) -> str:
-    """Translate statement block (sequence of statements)"""
-    statements = []
-    for child in node.named_children:
-        stmt = visitor_func(child, ctx)
-        if stmt:
-            statements.append(stmt)
-    return "".join(statements)
+def visit_switch_statement(node: Node, ctx: TranslationContext, visit_node) -> str:
+    """Translate switch statement to if/elif/else chain"""
+    value = node.child_by_field_name("value")
+    body = node.child_by_field_name("body")
+    
+    if not value or not body:
+        return ""
+    
+    value_str = visit_node(value, ctx)
+    indent = ctx.indent()
+    result = ""
+    
+    # Collect case clauses
+    cases = [child for child in body.named_children if child.type == "switch_case"]
+    default = [child for child in body.named_children if child.type == "switch_default"]
+    
+    for i, case in enumerate(cases):
+        case_value = case.child_by_field_name("value")
+        if not case_value:
+            continue
+        
+        case_val_str = visit_node(case_value, ctx)
+        
+        if i == 0:
+            result += f"{indent}if {value_str} == {case_val_str}:\n"
+        else:
+            result += f"{indent}elif {value_str} == {case_val_str}:\n"
+        
+        # Translate case body
+        ctx.indent_level += 1
+        for stmt in case.named_children[1:]:  # Skip the value node
+            if stmt.type not in ["switch_case", "switch_default"]:
+                stmt_str = visit_node(stmt, ctx)
+                if stmt_str:
+                    result += stmt_str
+        ctx.indent_level -= 1
+    
+    # Handle default case
+    if default:
+        result += f"{indent}else:\n"
+        ctx.indent_level += 1
+        for stmt in default[0].named_children:
+            stmt_str = visit_node(stmt, ctx)
+            if stmt_str:
+                result += stmt_str
+        ctx.indent_level -= 1
+    
+    return result
